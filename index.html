@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Completion Detail Report Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,30 +31,20 @@
   .section-nav .nav-btn:hover { color: white; }
   .section-nav .nav-btn.active { color: white; border-bottom-color: #e94560; }
 
-  /* â”€â”€ Upload â”€â”€ */
-  .upload-zone {
-    margin: 20px 28px 0;
-    border: 2px dashed #0f3460; border-radius: 10px; padding: 24px;
-    text-align: center; background: white; cursor: pointer; transition: all 0.2s;
+  /* â”€â”€ Loading / Error â”€â”€ */
+  .state-box {
+    margin: 40px 28px; padding: 40px; text-align: center;
+    background: white; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
   }
-  .upload-zone:hover, .upload-zone.dragover { border-color: #e94560; background: #fff5f7; }
-  .upload-zone input[type=file] { display: none; }
-  .upload-zone .upload-icon { font-size: 32px; margin-bottom: 8px; }
-  .upload-zone p { color: #555; font-size: 13px; }
-  .upload-zone strong { color: #0f3460; }
-  .upload-zone .file-list { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-  .file-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: #e8f0fe; border: 1px solid #0f3460; border-radius: 20px;
-    padding: 4px 12px; font-size: 12px; color: #0f3460;
+  .state-box .icon { font-size: 40px; margin-bottom: 12px; }
+  .state-box h2 { font-size: 16px; color: #1a1a2e; margin-bottom: 8px; }
+  .state-box p { color: #888; font-size: 13px; }
+  .spinner {
+    width: 36px; height: 36px; border: 4px solid #e0e0e0;
+    border-top-color: #0f3460; border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 0 auto 16px;
   }
-  .file-chip .remove { cursor: pointer; color: #e94560; font-weight: bold; }
-  .btn-parse {
-    margin-top: 14px; padding: 9px 28px;
-    background: #0f3460; color: white; border: none;
-    border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; transition: background 0.2s;
-  }
-  .btn-parse:hover { background: #e94560; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* â”€â”€ KPI Cards â”€â”€ */
   .kpi-row { display: flex; gap: 16px; margin: 20px 28px 0; flex-wrap: wrap; }
@@ -161,21 +150,24 @@
   <button class="nav-btn"        onclick="switchSection('locator')">&#128100; Locator Performance</button>
 </nav>
 
-<!-- Upload -->
-<div class="upload-zone" id="dropZone">
-  <input type="file" id="fileInput" accept=".xls,.xlsx" multiple>
-  <div class="upload-icon">&#128196;</div>
-  <p><strong>Drop weekly Excel files here</strong> or <strong style="color:#e94560;cursor:pointer;" onclick="document.getElementById('fileInput').click()">click to browse</strong></p>
-  <p style="margin-top:4px;">Accepts .xls and .xlsx &mdash; upload multiple weeks at once</p>
-  <div class="file-list" id="fileList"></div>
-  <br>
-  <button class="btn-parse" id="parseBtn" style="display:none;" onclick="parseAllFiles()">&#9658; Load Dashboard</button>
+<!-- Loading State -->
+<div id="loadingState" class="state-box">
+  <div class="spinner"></div>
+  <h2>Loading Dashboard&hellip;</h2>
+  <p>Fetching the latest report data</p>
+</div>
+
+<!-- Error State -->
+<div id="errorState" class="state-box" style="display:none;">
+  <div class="icon">&#9888;&#65039;</div>
+  <h2>No Data Available</h2>
+  <p>Dashboard data hasn&rsquo;t been published yet. Check back soon.</p>
 </div>
 
 <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• CUSTOMER SECTION â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
-<div id="sec-customer">
+<div id="sec-customer" style="display:none;">
 
-  <div id="kpiRow" class="kpi-row" style="display:none;">
+  <div id="kpiRow" class="kpi-row">
     <div class="kpi weeks">
       <label>Weeks Loaded</label>
       <div class="value" id="kpiWeeks">0</div>
@@ -203,7 +195,7 @@
     </div>
   </div>
 
-  <div class="dashboard" id="mainDash" style="display:none;">
+  <div class="dashboard" id="mainDash">
     <div class="card">
       <h2>&#128202; Weekly Ticket Volume by Status</h2>
       <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
@@ -214,14 +206,14 @@
     </div>
   </div>
 
-  <div class="dashboard full" id="topCustomersDash" style="display:none;">
+  <div class="dashboard full" id="topCustomersDash">
     <div class="card">
       <h2>&#127942; Top Customers by Ticket Volume</h2>
       <div class="chart-wrap" style="height:320px;"><canvas id="customerChart"></canvas></div>
     </div>
   </div>
 
-  <div class="dashboard full" id="tableDash" style="display:none;">
+  <div class="dashboard full" id="tableDash">
     <div class="card">
       <h2>&#128203; Customer Breakdown</h2>
       <div class="tabs" id="customerTabs"></div>
@@ -248,7 +240,7 @@
 <!-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• LOCATOR SECTION â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• -->
 <div id="sec-locator" style="display:none;">
 
-  <div id="locKpiRow" class="kpi-row" style="display:none;">
+  <div id="locKpiRow" class="kpi-row">
     <div class="kpi locators">
       <label>Active Locators</label>
       <div class="value" id="locKpiCount">0</div>
@@ -281,25 +273,25 @@
     </div>
   </div>
 
-  <div class="dashboard" id="locChartDash" style="display:none;">
+  <div class="dashboard" id="locChartDash">
     <div class="card">
       <h2>&#128202; Weekly Tickets per Locator <span style="font-size:11px;color:#aaa;font-weight:normal;">(top 10)</span></h2>
       <div class="chart-wrap" style="height:300px;"><canvas id="locVolumeChart"></canvas></div>
     </div>
     <div class="card">
-      <h2>&#9685; Completion Rate by Locator <span style="font-size:11px;color:#aaa;font-weight:normal;">(latest week)</span></h2>
+      <h2>&#9685; Completion Rate by Locator <span style="font-size:11px;color:#aaa;font-weight:normal;">(all weeks)</span></h2>
       <div class="chart-wrap" style="height:300px;"><canvas id="locRateChart"></canvas></div>
     </div>
   </div>
 
-  <div class="dashboard full" id="locBarDash" style="display:none;">
+  <div class="dashboard full" id="locBarDash">
     <div class="card">
       <h2>&#127942; On-Time Rate by Locator</h2>
       <div class="chart-wrap" style="height:320px;"><canvas id="locOnTimeChart"></canvas></div>
     </div>
   </div>
 
-  <div class="dashboard full" id="locTableDash" style="display:none;">
+  <div class="dashboard full" id="locTableDash">
     <div class="card">
       <h2>&#128100; Locator Detail Breakdown</h2>
       <div class="table-controls">
@@ -330,19 +322,45 @@
 
 </div><!-- /sec-locator -->
 
-<footer>Upload new weekly Excel reports to automatically update all charts &bull; Data stays local in your browser</footer>
+<footer>Data is updated by the operations team &bull; Refresh the page to see the latest</footer>
 
 <script>
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // State
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-let loadedFiles  = [];
-let weekData     = [];
-let charts       = {};
-let sortCol      = -1, sortAsc = true;
-let locSortCol   = -1, locSortAsc = true;
+let weekData       = [];
+let charts         = {};
+let sortCol        = -1, sortAsc = true;
+let locSortCol     = -1, locSortAsc = true;
 let currentSection = 'customer';
 let currentCustTab = 'all';
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Boot â€” fetch data.json
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const res = await fetch('data.json?v=' + Date.now());
+    if (!res.ok) throw new Error('Not found');
+    const json = await res.json();
+    weekData = (json.weeks || []).map(w => ({
+      ...w,
+      tickets: (w.tickets || []).map(t => ({
+        ...t,
+        onTime: t.onTime === null ? null : Boolean(t.onTime)
+      }))
+    }));
+    if (!weekData.length) throw new Error('Empty');
+    document.getElementById('lastUpdated').textContent =
+      'Last updated: ' + (json.lastUpdated ? new Date(json.lastUpdated).toLocaleString() : 'â€”');
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('sec-customer').style.display = '';
+    renderDashboard();
+  } catch (e) {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('errorState').style.display  = '';
+  }
+});
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Section Nav
@@ -357,142 +375,26 @@ function switchSection(name) {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Upload
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-const dropZone  = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-
-dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('dragover');
-  addFiles([...e.dataTransfer.files]);
-});
-fileInput.addEventListener('change', () => addFiles([...fileInput.files]));
-
-function addFiles(files) {
-  files.forEach(f => {
-    if (!loadedFiles.find(x => x.name === f.name && x.size === f.size)) loadedFiles.push(f);
-  });
-  renderFileList();
-}
-function removeFile(i) { loadedFiles.splice(i, 1); renderFileList(); }
-function renderFileList() {
-  document.getElementById('fileList').innerHTML = loadedFiles.map((f, i) =>
-    `<div class="file-chip">&#128196; ${f.name} <span class="remove" onclick="removeFile(${i})">&#10005;</span></div>`
-  ).join('');
-  document.getElementById('parseBtn').style.display = loadedFiles.length ? 'inline-block' : 'none';
-}
-
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Date helpers
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-function excelToDate(serial) {
-  if (!serial || isNaN(serial)) return null;
-  return new Date(Date.UTC(1899, 11, 30) + Math.floor(serial) * 86400000).toISOString().slice(0, 10);
-}
 function fmtDate(iso) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
   return `${m}/${d}/${y}`;
 }
-function daysBetween(isoA, isoB) {
-  if (!isoA || !isoB) return null;
-  return Math.round((new Date(isoB) - new Date(isoA)) / 86400000);
-}
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Parse Excel
+// Render Dashboard
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-function parseExcelFile(buffer, filename) {
-  const wb = XLSX.read(buffer, { type: 'array' });
-  const sheetName = wb.SheetNames.includes('ReportData') ? 'ReportData' : wb.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '' });
-
-  let fromDate = null, throughDate = null;
-  for (let i = 0; i < 25; i++) {
-    const r = rows[i];
-    for (let j = 0; j < r.length - 1; j++) {
-      const v = String(r[j]);
-      if (v.includes('From Date'))    { for (let k=j+1;k<r.length;k++) if (r[k]&&!isNaN(r[k])) { fromDate    = excelToDate(r[k]); break; } }
-      if (v.includes('Through Date')) { for (let k=j+1;k<r.length;k++) if (r[k]&&!isNaN(r[k])) { throughDate = excelToDate(r[k]); break; } }
-    }
-  }
-
-  const tickets = [];
-  let currentMember = '';
-
-  for (let i = 0; i < rows.length; i++) {
-    const r    = rows[i];
-    const col1 = String(r[1] || '');
-
-    if (col1.includes('Member Code:')) { currentMember = col1.replace('Member Code:', '').trim(); continue; }
-    if (!/^[A-Z]{2}\d{8,}/.test(col1)) continue;
-
-    const r2 = rows[i+1] || [], r3 = rows[i+2] || [], r5 = rows[i+4] || [];
-    const rawStatus = String(r[10] || '').trim().toUpperCase();
-    const status = rawStatus === 'NOT COMPLETE' ? 'incomplete'
-                 : rawStatus === 'MARKED'        ? 'marked'
-                 : rawStatus === 'CLEARED'        ? 'cleared' : rawStatus.toLowerCase();
-
-    const dueDate        = excelToDate(r[15]);
-    const completionDate = excelToDate(Math.floor(r[19]));
-    const onTime         = dueDate && completionDate ? completionDate <= dueDate : null;
-
-    tickets.push({
-      member: currentMember,
-      ticketNum: col1,
-      locator:   String(r[3] || ''),
-      operator:  String(r[6] || ''),
-      status,
-      dueDate,
-      completionDate,
-      onTime,
-      workType:      String(r3[15] || '').replace('Work Type:', '').trim(),
-      workPerformed: String(r5[6]  || ''),
-    });
-  }
-
-  return { filename, fromDate, throughDate, tickets };
-}
-
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// Load & Render
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-async function parseAllFiles() {
-  weekData = [];
-  const btn = document.getElementById('parseBtn');
-  btn.textContent = 'Loadingâ€¦'; btn.disabled = true;
-
-  for (const file of loadedFiles) {
-    weekData.push(parseExcelFile(new Uint8Array(await file.arrayBuffer()), file.name));
-  }
-  weekData.sort((a, b) => (a.fromDate || '') < (b.fromDate || '') ? -1 : 1);
-
-  btn.textContent = 'â†» Reload Dashboard'; btn.disabled = false;
-  document.getElementById('lastUpdated').textContent = 'Last updated: ' + new Date().toLocaleString();
-  renderDashboard();
-}
-
 function renderDashboard() {
-  // show customer
-  ['kpiRow','mainDash','topCustomersDash','tableDash'].forEach(id => {
-    document.getElementById(id).style.display = id === 'kpiRow' ? 'flex'
-                                              : id === 'mainDash' ? 'grid' : 'grid';
-  });
   renderKPIs(); renderTrendChart(); renderRateChart(); renderCustomerBarChart(); renderTable('all');
-
-  // show locator
-  ['locKpiRow','locChartDash','locBarDash','locTableDash'].forEach(id => {
-    document.getElementById(id).style.display = id === 'locKpiRow' ? 'flex' : 'grid';
-  });
   renderLocatorKPIs(); renderLocatorVolumeChart(); renderLocatorRateChart(); renderLocatorOnTimeChart(); renderLocatorTable();
 }
 
 function weekLabel(w) {
   if (w.fromDate && w.throughDate) return `${fmtDate(w.fromDate)} â€“ ${fmtDate(w.throughDate)}`;
   if (w.fromDate) return `Wk of ${fmtDate(w.fromDate)}`;
-  return w.filename.replace(/\.[^.]+$/, '');
+  return w.filename ? w.filename.replace(/\.[^.]+$/, '') : 'Unknown';
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -672,7 +574,6 @@ function sortTable(col) {
 // LOCATOR â€” helpers
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function cleanLocatorName(raw) {
-  // "LOCATOR19 - Marc Trodahl"  â†’  "Marc Trodahl"
   const m = raw.match(/LOCATOR\d+\s*-\s*(.+)/i);
   return m ? m[1].trim() : raw.trim();
 }
@@ -723,7 +624,7 @@ function renderLocatorKPIs() {
   const compRates = rows.filter(r=>r.total>0).map(r=>(r.marked+r.cleared)/r.total*100);
   const avgComp   = compRates.length ? (compRates.reduce((a,b)=>a+b,0)/compRates.length).toFixed(1)+'%' : 'â€”';
   const otRates   = rows.filter(r=>r.onTimeDenom>0).map(r=>r.onTimeCount/r.onTimeDenom*100);
-  const avgOT     = otRates.length   ? (otRates.reduce((a,b)=>a+b,0)/otRates.length).toFixed(1)+'%'     : 'â€”';
+  const avgOT     = otRates.length   ? (otRates.reduce((a,b)=>a+b,0)/otRates.length).toFixed(1)+'%'   : 'â€”';
 
   document.getElementById('locKpiCount').textContent       = locSet.size;
   document.getElementById('locKpiSub').textContent         = pLocSet.size ? `${pLocSet.size} prior week` : '';
@@ -736,7 +637,6 @@ function renderLocatorKPIs() {
   document.getElementById('locKpiIncomplete').textContent       = inc.toLocaleString();
   document.getElementById('locKpiIncompleteSub').textContent    = pinc ? (inc>pinc?`â–² ${inc-pinc}`:`â–¼ ${pinc-inc}`) + ' vs prior week' : '';
 
-  // Avg daily per locator = each locator's total / (weeks * 5), then average across locators
   const workDays = weekData.length * 5;
   const avgDailyRates = rows.filter(r=>r.total>0).map(r => r.total / workDays);
   const avgDaily = avgDailyRates.length ? (avgDailyRates.reduce((a,b)=>a+b,0) / avgDailyRates.length).toFixed(1) : 'â€”';
@@ -744,13 +644,12 @@ function renderLocatorKPIs() {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// LOCATOR â€” Volume Chart (top 10 per week, grouped)
+// LOCATOR â€” Volume Chart
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function renderLocatorVolumeChart() {
   if (charts.locVolume) charts.locVolume.destroy();
   const rows = buildLocatorData().slice(0,10);
   const colors = rows.map((_,i)=>`hsl(${200+i*18},65%,52%)`);
-
   charts.locVolume = new Chart(document.getElementById('locVolumeChart'), {
     type:'bar',
     data:{
@@ -768,23 +667,18 @@ function renderLocatorVolumeChart() {
 }
 
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-// LOCATOR â€” Completion Rate Chart (latest week, horizontal bars)
+// LOCATOR â€” Completion Rate Chart
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function renderLocatorRateChart() {
   if (charts.locRate) charts.locRate.destroy();
   const rows = buildLocatorData().slice(0,15);
   const compRates = rows.map(r => r.total ? +((r.marked+r.cleared)/r.total*100).toFixed(1) : 0);
-
   charts.locRate = new Chart(document.getElementById('locRateChart'), {
     type:'bar',
     data:{
       labels: rows.map(r=>r.name),
-      datasets:[{
-        label:'Completion Rate (%)',
-        data: compRates,
-        backgroundColor: compRates.map(v => v>=95?'#4CAF50bb':v>=85?'#FF9800bb':'#F44336bb'),
-        borderRadius:4,
-      }]
+      datasets:[{ label:'Completion Rate (%)', data: compRates,
+        backgroundColor: compRates.map(v => v>=95?'#4CAF50bb':v>=85?'#FF9800bb':'#F44336bb'), borderRadius:4 }]
     },
     options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:false} },
@@ -800,21 +694,15 @@ function renderLocatorOnTimeChart() {
   if (charts.locOnTime) charts.locOnTime.destroy();
   const rows = buildLocatorData().filter(r=>r.onTimeDenom>0).slice(0,15);
   const rates = rows.map(r => r.onTimeDenom ? +((r.onTimeCount/r.onTimeDenom)*100).toFixed(1) : 0);
-
   charts.locOnTime = new Chart(document.getElementById('locOnTimeChart'), {
     type:'bar',
     data:{
       labels: rows.map(r=>r.name),
-      datasets:[{
-        label:'On-Time Rate (%)',
-        data: rates,
-        backgroundColor: rates.map(v => v>=95?'#4CAF50bb':v>=80?'#FF9800bb':'#F44336bb'),
-        borderRadius:4,
-      }]
+      datasets:[{ label:'On-Time Rate (%)', data: rates,
+        backgroundColor: rates.map(v => v>=95?'#4CAF50bb':v>=80?'#FF9800bb':'#F44336bb'), borderRadius:4 }]
     },
     options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false},
-        tooltip:{ callbacks:{ label: ctx=>`${ctx.parsed.x}% on-time` } } },
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>`${ctx.parsed.x}% on-time` } } },
       scales:{ x:{min:0,max:100,ticks:{callback:v=>v+'%'},grid:{color:'#f0f0f0'}},
                y:{grid:{display:false},ticks:{font:{size:11}}} } }
   });
@@ -824,7 +712,6 @@ function renderLocatorOnTimeChart() {
 // LOCATOR â€” Table
 // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function renderLocatorTable() {
-  // Populate week filter
   const wf = document.getElementById('locWeekFilter');
   const curWF = wf.value;
   wf.innerHTML = '<option value="">All Weeks</option>' +
@@ -835,7 +722,6 @@ function renderLocatorTable() {
   const grandTotal = rows.reduce((s,r)=>s+r.total, 0);
   window._locGrandTotal = grandTotal;
 
-  // Build header
   document.getElementById('locTableHead').innerHTML = '<tr>' +
     `<th onclick="sortLocTable(0)"># <span class="sort-arrow">â†•</span></th>` +
     `<th onclick="sortLocTable(1)">Locator <span class="sort-arrow">â†•</span></th>` +
@@ -848,8 +734,7 @@ function renderLocatorTable() {
     `<th style="text-align:center">Marked</th>` +
     `<th style="text-align:center">Cleared</th>` +
     `<th style="text-align:center">Not Complete</th>` +
-    `<th style="text-align:center">Top Work Type</th>` +
-    '</tr>';
+    `<th style="text-align:center">Top Work Type</th></tr>`;
 
   window._locRows = rows;
   filterLocatorTable();
@@ -891,14 +776,12 @@ function filterLocatorTable() {
     const cpColor = +cp>=95?'#4CAF50':+cp>=85?'#FF9800':'#F44336';
     const otColor = ot!==null?(+ot>=95?'#4CAF50':+ot>=80?'#FF9800':'#F44336'):'#ccc';
     const avgDaily = workDays > 0 ? (r.total / workDays).toFixed(1) : 'â€”';
-
     const weekCells = weekData.map((w,i) => {
       const wk=weekLabel(w), wd=r.weeks[wk]; let delta='';
       if(i>0){const pd=r.weeks[weekLabel(weekData[i-1])],cur=wd?wd.total:0,prv=pd?pd.total:0;
         if(cur!==prv) delta=`<span class="delta ${cur>prv?'up':'down'}">${cur>prv?'â–²':'â–¼'}${Math.abs(cur-prv)}</span>`;}
       return `<td style="text-align:center">${wd?wd.total:'â€”'} ${delta}</td>`;
     }).join('');
-
     return `<tr>
       <td style="text-align:center"><span class="rank ${rankCls}">${rank}</span></td>
       <td class="locator-name">${r.name}</td>
